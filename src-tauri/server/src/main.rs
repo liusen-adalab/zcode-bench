@@ -1,16 +1,23 @@
 use anyhow::Result;
-use server::listener;
+use server::{listener, restful_api, settings::load_setttings};
 use tracing::{info, Level};
 
 #[tokio::main]
 async fn main() -> Result<()> {
+    load_setttings()?;
+
     tracing_subscriber::fmt()
         .with_max_level(Level::DEBUG)
         .init();
 
-    info!("start server");
+    info!("start tcp server");
 
-    listener::start_listener("0.0.0.0:5987".to_string()).await?;
+    let rx = listener::start_listener();
+    rx.await??;
+
+    info!("start http server");
+    let server = restful_api::build_server().await?;
+    server.await?;
 
     std::future::pending().await
 }

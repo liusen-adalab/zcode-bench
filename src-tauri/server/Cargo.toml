@@ -6,8 +6,12 @@ edition = "2021"
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
+actix-web = "4.3.1"
 anyhow = "1.0.72"
 bytes = "1.4.0"
+chrono = "0.4.26"
+config = { version = "0.13.3", default-features = false, features = ["toml"] }
+derive_more = "0.99.17"
 futures = "0.3.28"
 path-slash = "0.2.1"
 serde = "1.0.183"

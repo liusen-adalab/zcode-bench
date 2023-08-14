@@ -13,7 +13,7 @@ use tokio::{fs::File, io::AsyncReadExt, net::TcpStream};
 use tokio_util::codec::Framed;
 use tracing::{debug, error, info, warn};
 
-use crate::{client, log_if_err, my_err::MyResult};
+use crate::{client, get, log_if_err, my_err::MyResult, settings::RemoteServerConfig};
 
 #[derive(Debug, Deserialize, Serialize)]
 pub struct FileNode {
@@ -23,11 +23,15 @@ pub struct FileNode {
 }
 
 #[tauri::command]
-pub async fn load_fs_tree<R: Runtime>(
-    _window: tauri::Window<R>,
-    _root: String,
-) -> MyResult<FileNode> {
-    todo!()
+pub async fn load_dir_tree() -> MyResult<FileNode> {
+    let tree = get!(RemoteServerConfig::api_load_dir_tree());
+    Ok(tree)
+}
+
+#[tauri::command]
+pub async fn load_dir_content(path: PathBuf) -> MyResult<Vec<FileNode>> {
+    let tree = get!(RemoteServerConfig::api_load_dir_tree(), query: {"path": path});
+    Ok(tree)
 }
 
 struct UploadClient<R: Runtime> {

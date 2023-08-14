@@ -1,3 +1,5 @@
+pub mod http;
+
 #[macro_export]
 macro_rules! log_if_err {
     ($run:expr) => {

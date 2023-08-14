@@ -1,30 +1,44 @@
 use anyhow::Result;
 use futures::{SinkExt, StreamExt};
-use tokio::net::{TcpListener, TcpStream};
+use serde::Deserialize;
+use tokio::{
+    net::{TcpListener, TcpStream},
+    sync::oneshot,
+};
 use tokio_util::codec::Framed;
 use tracing::info;
 
-use crate::{file_system::upload, log_if_err};
+use crate::{file_system::upload, log_if_err, settings::get_settings};
 
-pub async fn start_listener(addr: String) -> Result<()> {
-    let listener = TcpListener::bind(&addr).await?;
+#[derive(Deserialize)]
+pub struct TcpListenerConfig {
+    pub bind: String,
+}
 
+pub fn start_listener() -> oneshot::Receiver<Result<()>> {
+    let settings = &get_settings().tcp_server;
+    let (tx, rx) = oneshot::channel();
     tokio::spawn(async move {
-        let mut listener = Some(listener);
-        loop {
-            let listener = match listener.take() {
-                Some(l) => l,
-                None => TcpListener::bind(&addr).await.unwrap(),
-            };
+        let listener = match TcpListener::bind(&settings.bind).await {
+            Ok(l) => {
+                let _ = tx.send(Ok(()));
+                l
+            }
+            Err(err) => {
+                let _ = tx.send(Err(err.into()));
+                return;
+            }
+        };
 
-            log_if_err!(listen_inner(listener).await);
+        loop {
+            log_if_err!(listen_inner(&listener).await);
         }
     });
 
-    Ok(())
+    rx
 }
 
-async fn listen_inner(listener: TcpListener) -> Result<()> {
+async fn listen_inner(listener: &TcpListener) -> Result<()> {
     let (stream, peer_addr) = listener.accept().await?;
     info!(?peer_addr, "new tcp connection");
 

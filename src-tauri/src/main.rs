@@ -6,12 +6,13 @@ use std::time::{Duration, Instant};
 use tauri::{Manager, Runtime};
 use tracing::Level;
 
-use crate::file_system::load_fs_tree;
+use crate::file_system::load_dir_tree;
 use crate::file_system::upload_file;
 
 pub mod client;
 pub mod file_system;
 pub mod my_err;
+pub mod settings;
 pub mod utils;
 
 // Learn more about Tauri commands at https://tauri.app/v1/guides/features/command
@@ -58,7 +59,7 @@ fn main() {
         .invoke_handler(tauri::generate_handler![
             greet,
             hello_event,
-            load_fs_tree,
+            load_dir_tree,
             upload_file
         ])
         .run(tauri::generate_context!())
