@@ -1,7 +1,8 @@
 <template>
     <div id="files-pane" @click.right.self.prevent="paneRightClick">
+
         <div class="fileItem" v-for="file in files">
-            <FileItem :name="file.name" :isDir="file.isDir" :last-modified="file.lastModified">
+            <FileItem :name="file.label" :is_dir="file.is_dir" :last_modified="file.last_modified">
             </FileItem>
         </div>
     </div>
@@ -11,25 +12,34 @@
 </template>
 
 <script lang="ts" setup>
-import { ref } from "vue";
+import { onMounted, ref } from "vue";
 import FileItem from "../components/FileItem.vue";
 import { ContextMenu, ContextMenuItem } from '@imengyu/vue3-context-menu';
 import { open } from '@tauri-apps/api/dialog';
 import { invoke } from "@tauri-apps/api";
 import { listen } from "@tauri-apps/api/event";
+import { FileNode } from "../scripts/fs.ts"
 
-const files = ref([
-    {
-        name: "dir-1",
-        isDir: true,
-        lastModified: "2020-08-03"
-    },
-    {
-        name: "file-1",
-        isDir: false,
-        lastModified: "2020-08-03"
-    },
-])
+const struct_loaded = ref(false)
+
+onMounted(() => {
+    console.log("load dir")
+    load_structure()
+})
+
+
+const files = ref<FileNode[]>([])
+
+async function load_structure() {
+    let tree: FileNode = await invoke("load_dir_tree")
+    struct_loaded.value = true
+    files.value = await invoke("load_dir_content", { path: tree.path })
+
+
+    console.log("tree", tree)
+    console.log("files", files)
+}
+
 
 const showRightClickMenu = ref(false)
 const FileRightClickOptionsConfig = ref({
@@ -87,8 +97,7 @@ async function upload(paths: string[]) {
     if (paths.length === 0) {
         return
     }
-    const remotePath = "C:/Users/OP 005/workspace/test-upload.txt"
-    let taskId: number = await invoke("upload_file", { localPath: paths[0], remotePath: remotePath })
+    let taskId: number = await invoke("upload_file", { localPath: paths[0], remotePath: "/" })
     const unlisten = await listen<UploadEvent>(`slice-uploaded-${taskId}`, (event) => {
         console.log(event)
         if (Number(event.payload.percent) >= 100) {

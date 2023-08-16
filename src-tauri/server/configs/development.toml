@@ -1,8 +1,0 @@
-[file_system]
-root = "./test_dir"
-
-[http_server]
-bind = "0.0.0.0:36743"
-
-[tcp_server]
-bind = "0.0.0.0:48371"

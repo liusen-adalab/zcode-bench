@@ -1,3 +1,4 @@
+pub mod http;
 pub mod register_client;
 pub mod upload;
 

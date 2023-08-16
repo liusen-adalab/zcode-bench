@@ -16,14 +16,14 @@ pub struct RemoteServerConfig {
 }
 
 impl RemoteServerConfig {
-    pub fn api_load_dir_tree() -> String {
+    pub fn api_load_structure() -> String {
         let host = &get_settings().remote_server.http;
-        format!("{}/api/fs/load_structure", host)
+        format!("http://{}/api/fs/load_structure", host)
     }
 
-    pub fn api_load_dir() -> String {
+    pub fn api_load_dir_content() -> String {
         let host = &get_settings().remote_server.http;
-        format!("{}/api/fs/load_dir", host)
+        format!("http://{}/api/fs/load_dir_content", host)
     }
 }
 

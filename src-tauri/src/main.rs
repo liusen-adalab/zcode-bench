@@ -3,9 +3,11 @@
 
 use std::time::{Duration, Instant};
 
+use settings::load_setttings;
 use tauri::{Manager, Runtime};
 use tracing::Level;
 
+use crate::file_system::load_dir_content;
 use crate::file_system::load_dir_tree;
 use crate::file_system::upload_file;
 
@@ -40,7 +42,8 @@ async fn hello_event<R: Runtime>(
     Ok(())
 }
 
-fn main() {
+fn main() -> anyhow::Result<()> {
+    load_setttings()?;
     tracing_subscriber::fmt()
         .with_max_level(Level::DEBUG)
         .init();
@@ -60,8 +63,11 @@ fn main() {
             greet,
             hello_event,
             load_dir_tree,
-            upload_file
+            upload_file,
+            load_dir_content,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
+
+    Ok(())
 }

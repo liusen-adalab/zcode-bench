@@ -4,11 +4,13 @@ use protocol::register_client::{ClientCodec, ClientType, RegisterClientReq};
 use tokio::net::TcpStream;
 use tokio_util::codec::{Decoder, Framed};
 
+use crate::settings::get_settings;
+
 pub async fn build_client_frame<C>(
     codec: C,
     client_type: ClientType,
 ) -> Result<Framed<TcpStream, C>> {
-    let server = "127.0.0.1:5987";
+    let server = &get_settings().remote_server.tcp;
 
     let stream = TcpStream::connect(server).await?;
     let mut framed = ClientCodec::new().framed(stream);

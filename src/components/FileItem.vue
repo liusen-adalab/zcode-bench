@@ -2,20 +2,24 @@
     <div class="folderContainer" draggable="true" :class="folderHoverClass" @dragstart="dragStart" @dragover="fileHover"
         @drop="dragDrop" @dragleave="dragleave">
         <div class="folderWrapper" @click.right.prevent.stop="rightClick">
-            <div class="folder" v-if="props.isDir">
+            <div class="folder" v-if="props.is_dir">
                 <div class="front"></div>
                 <div class="center"></div>
                 <div class="back"></div>
             </div>
-            <el-icon :size="90" v-else>
-                <VideoPlay />
-            </el-icon>
+            <div v-else class="file-icon">
+                <div>
+                    <VideoPlay style="width: 5em; height: 5em; margin-right: 0px; padding-left: 10px; margin-top: -10px;" />
+                    <!-- <el-icon :size="70">
+                    </el-icon> -->
+                </div>
+            </div>
 
             <div class="folderName">
                 <span>{{ props.name }}</span>
             </div>
             <div class="folderTime">
-                <span>{{ props.lastModified }}</span>
+                <span>{{ props.last_modified }}</span>
             </div>
         </div>
     </div>
@@ -50,12 +54,12 @@ const FileRightClickOptionsConfig = ref({
 })
 
 export interface FileProps {
-    name: string,
-    isDir: boolean
-    lastModified: string
+    name: string
+    is_dir: boolean
+    last_modified: string
 }
 
-const props = withDefaults(defineProps<FileProps>(), { name: "unknown", isDir: false, lastModified: "2021/07/17 10:49" })
+const props = withDefaults(defineProps<FileProps>(), { name: "unknown", is_dir: false, last_modified: "2021/07/17 10:49" })
 
 
 const folderHoverClass = ref({
@@ -77,7 +81,7 @@ function fileHover(event: DragEvent) {
 function dragDrop(event: DragEvent) {
     const data = event.dataTransfer?.getData('name'); // 获取文件的数据
     folderHoverClass.value.fileshover = false
-    if (props.isDir) {
+    if (props.is_dir) {
         console.log(`moving file or dir '${data}' into ${props.name}`)
     } else {
         console.log("cannot drop into file")
@@ -104,10 +108,11 @@ function rightClick(e: MouseEvent) {
     width: 100%;
     display: flex;
     flex-direction: column;
-    align-items: start;
-    align-self: start;
-    justify-content: start;
+    align-items: center;
+    justify-content: center;
     margin-bottom: 20px;
+
+    flex: 0 1 auto
 }
 
 .folder {
@@ -115,7 +120,6 @@ function rightClick(e: MouseEvent) {
     height: 80px;
     perspective: 600px;
     transform-style: preserve-3d;
-    cursor: pointer;
 }
 
 .folderWrapper {
@@ -127,21 +131,21 @@ function rightClick(e: MouseEvent) {
 }
 
 .folderWrapper:hover {
-    background-color: #ffffff;
+    background-color: #6c6363;
 }
 
 .folder div.back,
 .folder div.front {
     position: absolute;
     top: 0;
-    left: 0;
-    width: 110px;
-    height: 80px;
+    left: 5px;
+    width: 90px;
+    height: 70px;
     background-color: #c5b7f1;
 }
 
 .folder div.center {
-    width: 90px;
+    width: 80px;
     height: 60px;
     background-color: #ffffff;
     position: absolute;
@@ -155,18 +159,6 @@ function rightClick(e: MouseEvent) {
     background-image: linear-gradient(to left, #24d5ff 0%, #1eb2ff 45%, #1890ff 100%);
     border-radius: 6px;
     z-index: 3;
-    /* 若想把文件夹名字放到文件夹上面，则需要以下属性
-        display: flex;
-        flex-direction: row;
-        align-items: center;
-        justify-content: center;
-        font-size: 16px;
-        color: rgba(0,0,0,1);
-        font-weight: 500;
-        line-height: 16px;
-        text-overflow: ellipsis;
-        white-space: nowrap;
-        overflow: hidden;*/
     box-shadow: 0 1px rgba(255, 255, 255, 0.25) inset, 0 -2px 2px rgba(0, 0, 0, 0.1);
     transform: rotateX(-30deg);
     transform-origin: bottom;
@@ -196,9 +188,11 @@ function rightClick(e: MouseEvent) {
 }
 
 .folderName {
-    margin-top: 10px;
+    margin-top: 5px;
     font-size: 14px;
     font-weight: 500;
+    text-align: center;
+    vertical-align: middle;
 
     color: rgb(10, 218, 124);
 }
@@ -214,5 +208,12 @@ function rightClick(e: MouseEvent) {
     white-space: nowrap;
     -o-text-overflow: ellipsis;
     text-overflow: ellipsis;
+}
+
+.file-icon {
+    width: 100px;
+    display: flex;
+    align-content: space-around;
+    flex-wrap: wrap;
 }
 </style>

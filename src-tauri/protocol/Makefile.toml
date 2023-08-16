@@ -1,0 +1,14 @@
+[env]
+WIN_PATH = "/mnt/c/Users/OP 005/workspace/code/zcode-bench/src-tauri/protocol"
+WSL_PATH = "/home/sen/av1-server/server/protocol"
+
+[tasks.windows-sync]
+script_runner = "@shell"
+script = '''wsl rsync -av --exclude '*target*' '${WIN_PATH}/' '${WSL_PATH}/' '''
+
+[tasks.wsl-sync]
+script = ''' rsync -av --exclude "*target*" "${WSL_PATH}/" "${WIN_PATH}/" '''
+
+[tasks.sync]
+windows_alias = "windows-sync"
+linux_alias = "wsl-sync"

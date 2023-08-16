@@ -4,6 +4,7 @@ use anyhow::{bail, ensure, Context, Result};
 use bytes::BytesMut;
 use futures::{SinkExt, StreamExt};
 use protocol::{
+    http::Response,
     register_client::ClientType,
     upload::{ClientCodec, UploadRequest},
 };
@@ -19,25 +20,29 @@ use crate::{client, get, log_if_err, my_err::MyResult, settings::RemoteServerCon
 pub struct FileNode {
     label: String,
     path: String,
+    last_modified: String,
     children: Option<Vec<FileNode>>,
 }
 
 #[tauri::command]
 pub async fn load_dir_tree() -> MyResult<FileNode> {
-    let tree = get!(RemoteServerConfig::api_load_dir_tree());
+    let tree: Response<FileNode> = get!(RemoteServerConfig::api_load_structure());
+    let tree = tree.to_result()?.expect("expect root file node");
     Ok(tree)
 }
 
 #[tauri::command]
 pub async fn load_dir_content(path: PathBuf) -> MyResult<Vec<FileNode>> {
-    let tree = get!(RemoteServerConfig::api_load_dir_tree(), query: {"path": path});
-    Ok(tree)
+    let nodes: Response<Vec<FileNode>> =
+        get!(RemoteServerConfig::api_load_dir_content(), query: {"path": path});
+    let nodes = nodes.to_result()?.unwrap();
+    Ok(nodes)
 }
 
 struct UploadClient<R: Runtime> {
     task_id: u32,
     local_path: PathBuf,
-    remote_path: PathBuf,
+    dst_path: PathBuf,
     framed: Framed<TcpStream, ClientCodec>,
     window: Window<R>,
 }
@@ -52,7 +57,7 @@ impl<R: Runtime> UploadClient<R> {
             framed,
             window,
             task_id: next_load_task_id(),
-            remote_path: dst,
+            dst_path: dst,
         };
         this.handshake().await?;
         Ok(this)
@@ -60,7 +65,7 @@ impl<R: Runtime> UploadClient<R> {
 
     async fn handshake(&mut self) -> Result<()> {
         self.framed
-            .send(UploadRequest::Register(self.remote_path.clone()))
+            .send(UploadRequest::Register(self.dst_path.clone()))
             .await?;
         match self.framed.next().await {
             Some(Ok(msg)) => match msg {
@@ -140,9 +145,10 @@ pub fn next_load_task_id() -> u32 {
 pub async fn upload_file<R: Runtime>(
     window: tauri::Window<R>,
     local_path: PathBuf,
-    remote_path: PathBuf,
+    to_dir: PathBuf,
 ) -> MyResult<u32> {
-    let client = UploadClient::new(local_path, remote_path, window).await?;
+    info!(?local_path, ?to_dir, "uploading");
+    let client = UploadClient::new(local_path, to_dir, window).await?;
     let task_id = client.task_id;
     client.run();
 
