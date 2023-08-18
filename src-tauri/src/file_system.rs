@@ -1,156 +1,127 @@
-use std::{path::PathBuf, sync::atomic::AtomicU32, time::Duration};
-
-use anyhow::{bail, ensure, Context, Result};
-use bytes::BytesMut;
-use futures::{SinkExt, StreamExt};
-use protocol::{
-    http::Response,
-    register_client::ClientType,
-    upload::{ClientCodec, UploadRequest},
+use std::{
+    borrow::Cow,
+    ffi::OsStr,
+    path::{Path, PathBuf},
 };
-use serde::{Deserialize, Serialize};
-use tauri::{Runtime, Window};
-use tokio::{fs::File, io::AsyncReadExt, net::TcpStream};
-use tokio_util::codec::Framed;
-use tracing::{debug, error, info, warn};
 
-use crate::{client, get, log_if_err, my_err::MyResult, settings::RemoteServerConfig};
+use anyhow::Result;
+
+use path_slash::PathBufExt;
+use protocol::http::Response;
+use serde::{Deserialize, Serialize};
+use tauri::Runtime;
+
+use tracing::{debug, info, instrument};
+
+use crate::{
+    file_system::upload::UploadClient, get, my_err::MyResult, post, settings::RemoteServerConfig,
+};
+
+mod upload;
+
+#[derive(Deserialize, Debug, Clone)]
+pub struct UnixPath(PathBuf);
+
+impl Serialize for UnixPath {
+    fn serialize<S>(&self, serializer: S) -> std::result::Result<S::Ok, S::Error>
+    where
+        S: serde::Serializer,
+    {
+        serializer.serialize_str(&*self.to_string_lossy())
+    }
+}
+
+impl UnixPath {
+    fn to_string_lossy(&self) -> Cow<str> {
+        self.0.to_slash_lossy()
+    }
+
+    fn join(&self, path: impl AsRef<Path>) -> Self {
+        Self(self.0.join(path))
+    }
+}
 
 #[derive(Debug, Deserialize, Serialize)]
+#[serde(rename_all(serialize = "camelCase"))]
 pub struct FileNode {
-    label: String,
-    path: String,
+    #[serde(alias = "label")]
+    name: String,
+    path: UnixPath,
     last_modified: String,
     children: Option<Vec<FileNode>>,
 }
 
 #[tauri::command]
 pub async fn load_dir_tree() -> MyResult<FileNode> {
+    debug!("loading");
     let tree: Response<FileNode> = get!(RemoteServerConfig::api_load_structure());
     let tree = tree.to_result()?.expect("expect root file node");
     Ok(tree)
 }
 
+#[instrument()]
 #[tauri::command]
 pub async fn load_dir_content(path: PathBuf) -> MyResult<Vec<FileNode>> {
+    debug!("loading");
     let nodes: Response<Vec<FileNode>> =
         get!(RemoteServerConfig::api_load_dir_content(), query: {"path": path});
     let nodes = nodes.to_result()?.unwrap();
     Ok(nodes)
 }
 
-struct UploadClient<R: Runtime> {
-    task_id: u32,
-    local_path: PathBuf,
-    dst_path: PathBuf,
-    framed: Framed<TcpStream, ClientCodec>,
-    window: Window<R>,
+#[instrument]
+#[tauri::command]
+pub async fn create_dir(path: &Path) -> MyResult<()> {
+    debug!("creating dir");
+    let url = RemoteServerConfig::url_create_dir();
+    let res: Response<()> = post!(url, body: {"path": path});
+    res.to_result()?;
+
+    Ok(())
 }
 
-impl<R: Runtime> UploadClient<R> {
-    async fn new(src: PathBuf, dst: PathBuf, window: tauri::Window<R>) -> anyhow::Result<Self> {
-        let framed = client::build_client_frame(ClientCodec::new(), ClientType::Upload)
-            .await
-            .context("connect server")?;
-        let mut this = Self {
-            local_path: src,
-            framed,
-            window,
-            task_id: next_load_task_id(),
-            dst_path: dst,
-        };
-        this.handshake().await?;
-        Ok(this)
-    }
+#[instrument]
+#[tauri::command]
+pub async fn move_to(from: &Path, to_dir: &Path) -> MyResult<()> {
+    debug!("moving");
 
-    async fn handshake(&mut self) -> Result<()> {
-        self.framed
-            .send(UploadRequest::Register(self.dst_path.clone()))
-            .await?;
-        match self.framed.next().await {
-            Some(Ok(msg)) => match msg {
-                protocol::upload::UploadResponse::RegisterResult(ok) => {
-                    ensure!(ok, "server rejected upload client handshake")
-                }
-            },
-            Some(Err(err)) => {
-                error!(?err);
-                bail!("failed to decode server handshake msg: {}", err)
-            }
-            None => {
-                bail!("server didn't send handshake result")
-            }
-        }
-        debug!("handshake ok");
-        Ok(())
-    }
+    let to = to_dir.join(get_file_name(from)?);
+    let to = to.to_slash_lossy();
 
-    fn run(self) {
-        tokio::spawn(async move { log_if_err!(self.runn_inner().await) });
-    }
+    let url = RemoteServerConfig::url_move();
+    let res: Response<()> = post!(url, body: {"from": from, "to": to});
+    res.to_result()?;
 
-    async fn runn_inner(mut self) -> Result<()> {
-        tokio::time::sleep(Duration::from_secs(1)).await;
-
-        debug!(?self.local_path, "sending file");
-        let mut file = File::open(&self.local_path).await?;
-        let size = file.metadata().await?.len();
-        let event_key = format!("slice-uploaded-{}", self.task_id);
-
-        let mut bytes = BytesMut::with_capacity(500);
-        let mut read_size = 0;
-
-        loop {
-            let len = file.read_buf(&mut bytes).await?;
-            if len == 0 {
-                break;
-            }
-            read_size += len;
-
-            // send to server
-            self.framed
-                .send(UploadRequest::Upload(bytes.to_vec()))
-                .await?;
-
-            let percent = format!("{:.02}", read_size as f64 / size as f64 * 100.0);
-            // nofity frontend
-            self.window
-                .emit(&event_key, UploadEvent { percent })
-                .unwrap();
-
-            bytes.clear();
-        }
-
-        if read_size as u64 != size {
-            warn!("file size mismatch!");
-        }
-
-        info!("send file done");
-
-        Ok(())
-    }
+    Ok(())
 }
 
-#[derive(Serialize, Clone)]
-pub struct UploadEvent {
-    percent: String,
-}
+#[tauri::command]
+pub async fn delete_file(path: &Path) -> MyResult<()> {
+    debug!("deleting");
+    let url = RemoteServerConfig::url_delete_file();
+    let res: Response<()> = post!(url, body: {"path": path});
+    res.to_result()?;
 
-pub fn next_load_task_id() -> u32 {
-    static ID: AtomicU32 = AtomicU32::new(0);
-    ID.fetch_add(1, std::sync::atomic::Ordering::SeqCst)
+    Ok(())
 }
 
 #[tauri::command]
 pub async fn upload_file<R: Runtime>(
     window: tauri::Window<R>,
     local_path: PathBuf,
-    to_dir: PathBuf,
-) -> MyResult<u32> {
+    to_dir: UnixPath,
+) -> MyResult<String> {
     info!(?local_path, ?to_dir, "uploading");
-    let client = UploadClient::new(local_path, to_dir, window).await?;
-    let task_id = client.task_id;
+    let dst = to_dir.join(get_file_name(&local_path)?);
+    let client = UploadClient::new(local_path, dst, window).await?;
+    let event_key = client.task_event_key.clone();
     client.run();
 
-    Ok(task_id)
+    debug!(%event_key);
+    Ok(event_key)
+}
+
+fn get_file_name(path: &Path) -> Result<&OsStr> {
+    path.file_name()
+        .ok_or_else(|| ::anyhow::anyhow!("no file name"))
 }

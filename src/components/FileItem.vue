@@ -1,8 +1,8 @@
 <template>
     <div class="folderContainer" draggable="true" :class="folderHoverClass" @dragstart="dragStart" @dragover="fileHover"
-        @drop="dragDrop" @dragleave="dragleave">
-        <div class="folderWrapper" @click.right.prevent.stop="rightClick">
-            <div class="folder" v-if="props.is_dir">
+        @drop="dragDrop" @dragleave="dragleave" @dblclick="onDblClick">
+        <div class="folderWrapper" @click.right.prevent.stop="onRightClick" draggable="true">
+            <div class="folder" v-if="props.isDir">
                 <div class="front"></div>
                 <div class="center"></div>
                 <div class="back"></div>
@@ -16,14 +16,14 @@
             </div>
 
             <div class="folderName">
-                <span>{{ props.name }}</span>
+                <span class="file-name">{{ props.name }}</span>
             </div>
             <div class="folderTime">
-                <span>{{ props.last_modified }}</span>
+                <span>{{ props.lastModified }}</span>
             </div>
         </div>
     </div>
-    <context-menu v-model:show="show" :options="FileRightClickOptionsConfig">
+    <context-menu v-model:show="showRightClickMenu" :options="FileRightClickOptionsConfig">
         <context-menu-item label="delete" @click="onMenuItemClick(FileMenuOperate.Delete)" />
     </context-menu>
 </template>
@@ -31,35 +31,11 @@
 <script lang="ts" setup>
 import { ContextMenu, } from '@imengyu/vue3-context-menu';
 import { ref } from 'vue';
+import { FileProps } from '../scripts/fs.ts';
 
-enum FileMenuOperate {
-    Delete
-}
+const emit = defineEmits(['delete', 'move', 'enter'])
 
-const show = ref(false)
-
-function onMenuItemClick(operate: FileMenuOperate) {
-    switch (operate) {
-        case FileMenuOperate.Delete: {
-            console.log("deleting file:", props.name)
-        }
-    }
-}
-
-const FileRightClickOptionsConfig = ref({
-    zIndex: 3,
-    minWidth: 230,
-    x: 500,
-    y: 200
-})
-
-export interface FileProps {
-    name: string
-    is_dir: boolean
-    last_modified: string
-}
-
-const props = withDefaults(defineProps<FileProps>(), { name: "unknown", is_dir: false, last_modified: "2021/07/17 10:49" })
+const props = defineProps<FileProps>()
 
 
 const folderHoverClass = ref({
@@ -69,6 +45,7 @@ const folderHoverClass = ref({
 function dragStart(event: DragEvent) {
     console.log("start", event)
     event.dataTransfer?.setData("name", props.name)
+    event.dataTransfer?.setData("path", props.path)
 }
 
 function fileHover(event: DragEvent) {
@@ -79,10 +56,12 @@ function fileHover(event: DragEvent) {
 }
 
 function dragDrop(event: DragEvent) {
-    const data = event.dataTransfer?.getData('name'); // 获取文件的数据
+    const path = event.dataTransfer?.getData('path');
     folderHoverClass.value.fileshover = false
-    if (props.is_dir) {
-        console.log(`moving file or dir '${data}' into ${props.name}`)
+
+    if (props.isDir) {
+        console.log(`moving file or dir '${path}' into ${props.name}`)
+        emit("move", { src: path, receiveDir: props.path })
     } else {
         console.log("cannot drop into file")
     }
@@ -93,13 +72,39 @@ function dragleave(event: Event) {
     folderHoverClass.value.fileshover = false
 }
 
-function rightClick(e: MouseEvent) {
-    console.log(e)
-    console.log("prevented")
+const FileRightClickOptionsConfig = ref({
+    zIndex: 3,
+    minWidth: 230,
+    x: 500,
+    y: 200
+})
 
-    show.value = true
+function onRightClick(e: MouseEvent) {
+    console.log("item right clicked", e)
+
+    showRightClickMenu.value = true
     FileRightClickOptionsConfig.value.x = e.x
     FileRightClickOptionsConfig.value.y = e.y
+}
+
+enum FileMenuOperate {
+    Delete
+}
+
+const showRightClickMenu = ref(false)
+
+function onMenuItemClick(operate: FileMenuOperate) {
+    switch (operate) {
+        case FileMenuOperate.Delete: {
+            console.log(props)
+            console.log("deleting file:", props.name)
+            emit("delete", props.path)
+        }
+    }
+}
+
+function onDblClick() {
+    emit('enter', props.path)
 }
 </script>
 
@@ -215,5 +220,13 @@ function rightClick(e: MouseEvent) {
     display: flex;
     align-content: space-around;
     flex-wrap: wrap;
+}
+
+.file-name {
+    display: inline-block;
+    width: 100px;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
 }
 </style>

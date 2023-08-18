@@ -1,10 +1,8 @@
-use std::path::PathBuf;
-
 use serde::{Deserialize, Serialize};
 
 #[derive(Serialize, Deserialize)]
 pub enum UploadRequest {
-    Register(PathBuf),
+    Register(String),
     Upload(Vec<u8>),
 }
 

@@ -25,6 +25,21 @@ impl RemoteServerConfig {
         let host = &get_settings().remote_server.http;
         format!("http://{}/api/fs/load_dir_content", host)
     }
+
+    pub fn url_delete_file() -> String {
+        let host = &get_settings().remote_server.http;
+        format!("http://{}/api/fs/delete", host)
+    }
+
+    pub fn url_create_dir() -> String {
+        let host = &get_settings().remote_server.http;
+        format!("http://{}/api/fs/create_dir", host)
+    }
+
+    pub fn url_move() -> String {
+        let host = &get_settings().remote_server.http;
+        format!("http://{}/api/fs/move", host)
+    }
 }
 
 #[allow(dead_code)]

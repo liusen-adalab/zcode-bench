@@ -7,8 +7,11 @@ use settings::load_setttings;
 use tauri::{Manager, Runtime};
 use tracing::Level;
 
+use crate::file_system::create_dir;
+use crate::file_system::delete_file;
 use crate::file_system::load_dir_content;
 use crate::file_system::load_dir_tree;
+use crate::file_system::move_to;
 use crate::file_system::upload_file;
 
 pub mod client;
@@ -65,6 +68,9 @@ fn main() -> anyhow::Result<()> {
             load_dir_tree,
             upload_file,
             load_dir_content,
+            delete_file,
+            create_dir,
+            move_to
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

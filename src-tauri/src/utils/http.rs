@@ -42,8 +42,8 @@ macro_rules! request {
         let req = $req;
         let q = ::serde_json::json!({
             $($key: $value),*
-        });
-        let req = req.query(&q);
+        }).to_string();
+        let req = req.body(q);
         crate::request!(@config req $($tts)*)
     }};
 
@@ -94,11 +94,11 @@ macro_rules! request {
 #[macro_export]
 macro_rules! match_requst {
     (method: $method:tt, client: $client:expr, url: $url:expr $(,)?) => {{
-        crate::request!(method: get, client: $client, url: $url,)
+        crate::request!(method: $method, client: $client, url: $url,)
     }};
 
     (method: $method:tt, client: $client:expr, url: $url:expr, $($tts:tt)+) => {{
-        crate::request!(method: get, client: $client, url: $url, $($tts)+)
+        crate::request!(method: $method, client: $client, url: $url, $($tts)+)
     }};
 
     (method: $method:tt, $client:expr, $url:expr $(,)?) => {{
