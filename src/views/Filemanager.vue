@@ -1,16 +1,23 @@
 <template>
-    <div>
-        <el-breadcrumb separator="/">
-            <el-breadcrumb-item v-for="item in pathBreadCrumb" @click="enterDir(item.path)">{{ item.name
-            }}</el-breadcrumb-item>
-        </el-breadcrumb>
-    </div>
-    <div id="files-pane" @click.right.self.prevent="paneRightClick">
-        <div class="fileItem" v-for="file in dirContent">
-            <FileItem v-bind="file" @delete="onFileDelete" @move="onFileMove" @enter="enterDir">
+    <div id="container">
+        <div id="navigate-bar">
+            <div id="back-icon" @click="backToUpper">
+                <img src="../assets/backToParent.svg">
+            </div>
+            <div>
+                <el-breadcrumb separator="/" id="file-bc">
+                    <el-breadcrumb-item v-for="item in pathBreadCrumb" @click="flashDirContent(item.path)">{{ item.name
+                    }}</el-breadcrumb-item>
+                </el-breadcrumb>
+            </div>
+        </div>
+        <div id="files-pane" @click.right.self.prevent="paneRightClick">
+            <FileItem v-for="file in dirContent" v-bind="file" @delete="onFileDelete" @move="onFileMove"
+                @enter="flashDirContent">
             </FileItem>
         </div>
     </div>
+
     <context-menu v-model:show="showRightClickMenu" :options="FileRightClickOptionsConfig">
         <context-menu-item label="上传视频" @click="handleFilePaneMemu(FileMenuOperate.Upload)" />
         <context-menu-item label="创建文件夹" @click="handleFilePaneMemu(FileMenuOperate.CreateDir)" />
@@ -74,9 +81,16 @@ const dirContent = ref<FileNode[]>([])
 async function load_structure() {
     let tree: FileNode = await invoke("load_dir_tree")
     struct_loaded.value = true
-    enterDir(tree.path)
+    curDir.value = tree.path
+
+    flashDirContent()
 }
 
+async function backToUpper() {
+    console.log("back")
+    curDir.value = pathlib.dirname(curDir.value)
+    flashDirContent()
+}
 
 const showRightClickMenu = ref(false)
 const FileRightClickOptionsConfig = ref({
@@ -200,24 +214,55 @@ async function onFileMove(params: { src: string, receiveDir: string }) {
     })
 }
 
-async function enterDir(path: string) {
+async function flashDirContent(path: string = curDir.value) {
     dirContent.value = await fs.loadDir(path)
     curDir.value = path
 }
 </script>
 
-<style>
-.fileItem {
-    width: 150px;
-    height: 120px;
-    /* flex: initial; */
+<style scoped>
+#container {
+    display: flex;
+    height: 100%;
+    flex-direction: column;
+}
+
+#navigate-bar {
+    display: flex;
+    min-height: 2em;
+    border-bottom: 1px gray solid;
+}
+
+#back-icon {
+    width: 2em;
+    height: 100%;
+    border-right: 1px solid gray;
+    padding: 0 10px;
+}
+
+#back-icon:hover {
+    background: gray;
+    cursor: pointer;
+}
+
+img {
+    width: 100%;
+    height: 100%;
+}
+
+#file-bc {
+    height: 100%;
+    font-size: 20px;
+    display: flex;
+    align-items: center;
 }
 
 #files-pane {
-    height: 70lvh;
     display: flex;
-    margin: 1em;
-    resize: horizontal;
     flex-wrap: wrap;
+    padding: .5em .8em;
+    flex-grow: 2;
+    align-items: start;
+    align-content: start;
 }
 </style>
